@@ -1,0 +1,38 @@
+services:
+  marketing-parser:
+    build: .
+    env_file:
+      - .env.example
+    environment:
+      DATABASE_URL: sqlite:////app/data/marketing_parser.db
+      AUTO_CREATE_SCHEMA: "false"
+    ports:
+      - "8040:8040"
+    volumes:
+      - marketing_parser_data:/app/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8040/api/v1/health', timeout=2)",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  marketing-parser-web:
+    build:
+      context: ..
+      dockerfile: marketing_parser/frontend/Dockerfile
+    environment:
+      VITE_PROXY_TARGET: http://marketing-parser:8040
+    ports:
+      - "5178:5178"
+    depends_on:
+      marketing-parser:
+        condition: service_healthy
+
+volumes:
+  marketing_parser_data:
