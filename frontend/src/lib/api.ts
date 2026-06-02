@@ -12,7 +12,7 @@ import type {
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const IDENTITY_API_BASE_URL = import.meta.env.VITE_IDENTITY_API_BASE_URL || '/identity-api';
 const IDENTITY_API_FALLBACK_BASE_URL =
-  import.meta.env.VITE_IDENTITY_API_FALLBACK_BASE_URL || 'http://localhost:8500/api/v1';
+  import.meta.env.VITE_IDENTITY_API_FALLBACK_BASE_URL || `${localApiUrl(8500)}/api/v1`;
 const TOKEN_KEY = 'identity_access_token';
 const FALLBACK_TOKEN_KEY = 'access_token';
 
@@ -94,7 +94,7 @@ function uniqueBaseUrls(values: string[]): string[] {
 }
 
 function shouldRetryIdentityRequest(error: unknown): boolean {
-  return error instanceof HttpError && (error.status === 404 || error.status === 405);
+  return !(error instanceof HttpError) || error.status === 404 || error.status === 405;
 }
 
 class HttpError extends Error {
@@ -104,6 +104,11 @@ class HttpError extends Error {
   ) {
     super(message);
   }
+}
+
+function localApiUrl(port: number): string {
+  if (typeof window === 'undefined') return `http://localhost:${port}`;
+  return `${window.location.protocol}//${window.location.hostname}:${port}`;
 }
 
 function params(values: Record<string, string | number | boolean | null | undefined>): string {
