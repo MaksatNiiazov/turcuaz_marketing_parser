@@ -11,6 +11,8 @@ import type {
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
 const IDENTITY_API_BASE_URL = import.meta.env.VITE_IDENTITY_API_BASE_URL || '/identity-api';
+const IDENTITY_API_FALLBACK_BASE_URL =
+  import.meta.env.VITE_IDENTITY_API_FALLBACK_BASE_URL || 'http://localhost:8500/api/v1';
 const TOKEN_KEY = 'identity_access_token';
 const FALLBACK_TOKEN_KEY = 'access_token';
 
@@ -47,8 +49,30 @@ async function requestJson<T>(path: string, init: RequestInit = {}): Promise<T> 
 }
 
 async function requestIdentityJson<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const bases = uniqueBaseUrls([IDENTITY_API_BASE_URL, IDENTITY_API_FALLBACK_BASE_URL]);
+  let lastError: Error | null = null;
+
+  for (const baseUrl of bases) {
+    try {
+      return await requestIdentityJsonFromBase<T>(baseUrl, path, init);
+    } catch (error) {
+      if (!shouldRetryIdentityRequest(error) || baseUrl === bases[bases.length - 1]) {
+        throw error;
+      }
+      lastError = error instanceof Error ? error : new Error(String(error));
+    }
+  }
+
+  throw lastError ?? new Error('Identity API request failed');
+}
+
+async function requestIdentityJsonFromBase<T>(
+  baseUrl: string,
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
   const token = getToken();
-  const response = await fetch(`${IDENTITY_API_BASE_URL}${path}`, {
+  const response = await fetch(`${baseUrl}${path}`, {
     ...init,
     headers: {
       Accept: 'application/json',
@@ -60,9 +84,26 @@ async function requestIdentityJson<T>(path: string, init: RequestInit = {}): Pro
   const data = await response.json().catch(() => null);
   if (!response.ok) {
     if (response.status === 401) clearToken();
-    throw new Error(data?.detail || data?.message || `HTTP ${response.status}`);
+    throw new HttpError(response.status, data?.detail || data?.message || `HTTP ${response.status}`);
   }
   return data as T;
+}
+
+function uniqueBaseUrls(values: string[]): string[] {
+  return values.filter((value, index) => value && values.indexOf(value) === index);
+}
+
+function shouldRetryIdentityRequest(error: unknown): boolean {
+  return error instanceof HttpError && (error.status === 404 || error.status === 405);
+}
+
+class HttpError extends Error {
+  constructor(
+    public readonly status: number,
+    message: string,
+  ) {
+    super(message);
+  }
 }
 
 function params(values: Record<string, string | number | boolean | null | undefined>): string {

@@ -79,6 +79,7 @@ AUTH_ENABLED=true
 IDENTITY_SECRET_KEY=dev-change-me-32-byte-secret-key-for-turkuaz-identity
 IDENTITY_ALGORITHM=HS256
 VITE_IDENTITY_PROXY_TARGET=http://localhost:8500
+VITE_IDENTITY_API_FALLBACK_BASE_URL=http://localhost:8500/api/v1
 ```
 
 Register the `market_parser` service in Identity and assign these permissions to the roles that

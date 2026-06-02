@@ -32,6 +32,7 @@ services:
     environment:
       VITE_PROXY_TARGET: http://marketing-parser:8503
       VITE_IDENTITY_PROXY_TARGET: http://host.docker.internal:8500
+      VITE_IDENTITY_API_FALLBACK_BASE_URL: http://localhost:8500/api/v1
     ports:
       - "7503:7503"
     depends_on:
