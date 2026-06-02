@@ -5,14 +5,14 @@ export default defineConfig({
   plugins: [react()],
   server: {
     host: '0.0.0.0',
-    port: 5178,
+    port: 7503,
     proxy: {
       '/api': {
-        target: process.env.VITE_PROXY_TARGET || 'http://localhost:8040',
+        target: process.env.VITE_PROXY_TARGET || 'http://localhost:8503',
         changeOrigin: true,
       },
       '/identity-api': {
-        target: process.env.VITE_IDENTITY_PROXY_TARGET || 'http://localhost:8020',
+        target: process.env.VITE_IDENTITY_PROXY_TARGET || 'http://localhost:8500',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/identity-api/, '/api/v1'),
       },

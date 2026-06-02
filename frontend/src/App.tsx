@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
-import { AppShell, Icon, serviceLinks } from '@turkuaz/ui';
+import { AppShell, fetchServiceRegistry, Icon, serviceLinksFromRegistry } from '@turkuaz/ui';
+import type { ServiceRegistryItem } from '@turkuaz/ui';
 import {
   createSource,
   downloadFile,
@@ -29,6 +30,8 @@ import type {
   ProductSnapshot,
   ProductStats,
 } from './lib/types';
+
+const IDENTITY_API_BASE_URL = import.meta.env.VITE_IDENTITY_API_BASE_URL || '/identity-api';
 
 type ViewMode = 'categories' | 'runs' | 'products' | 'reports' | 'export';
 
@@ -84,6 +87,7 @@ export function App() {
     type: 'html',
   });
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [serviceApps, setServiceApps] = useState<ServiceRegistryItem[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(getToken()));
 
   const selectedSource = sources.find((source) => source.id === selectedSourceId) ?? sources[0] ?? null;
@@ -100,7 +104,10 @@ export function App() {
     }
     setState({ loading: true, error: null });
     try {
-      const me = await fetchMe();
+      const [me, serviceRows] = await Promise.all([
+        fetchMe(),
+        fetchServiceRegistry({ identityApiBaseUrl: IDENTITY_API_BASE_URL }).catch(() => [] as ServiceRegistryItem[]),
+      ]);
       const sourceRows = await fetchSources();
       const sourceId = selectedSourceId ?? sourceRows[0]?.id ?? null;
       const [categoryRows, runRows, productRows] = await Promise.all([
@@ -109,6 +116,7 @@ export function App() {
         fetchProducts({ source_id: sourceId ?? undefined }),
       ]);
       setCurrentUser(me);
+      setServiceApps(serviceRows);
       setIsAuthenticated(true);
       setSources(sourceRows);
       setSelectedSourceId(sourceId);
@@ -328,7 +336,7 @@ export function App() {
       }}
       navItems={navItems}
       sideLinks={[
-        ...serviceLinks.filter((link) => link.label !== 'Market Parser'),
+        ...serviceLinksFromRegistry(serviceApps, { currentServiceCode: 'market_parser' }),
         { href: '/docs', label: 'Swagger', icon: 'file', permissions: ['market_parser.products.read'] },
       ]}
       accessClaims={currentUser}

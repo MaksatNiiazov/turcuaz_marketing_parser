@@ -42,7 +42,7 @@ app.include_router(api_router, prefix="/api/v1")
 
 
 def run() -> None:
-    uvicorn.run("app.main:app", host="0.0.0.0", port=8040, reload=True)
+    uvicorn.run("app.main:app", host="0.0.0.0", port=8503, reload=True)
 
 
 if __name__ == "__main__":

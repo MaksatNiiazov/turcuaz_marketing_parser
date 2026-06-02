@@ -10,7 +10,7 @@ services:
       IDENTITY_SECRET_KEY: dev-change-me-32-byte-secret-key-for-turkuaz-identity
       IDENTITY_ALGORITHM: HS256
     ports:
-      - "8040:8040"
+      - "8503:8503"
     volumes:
       - marketing_parser_data:/app/data
     healthcheck:
@@ -19,7 +19,7 @@ services:
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8040/api/v1/ready', timeout=2)",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8503/api/v1/ready', timeout=2)",
         ]
       interval: 10s
       timeout: 3s
@@ -30,10 +30,10 @@ services:
       context: ..
       dockerfile: marketing_parser/frontend/Dockerfile
     environment:
-      VITE_PROXY_TARGET: http://marketing-parser:8040
-      VITE_IDENTITY_PROXY_TARGET: http://host.docker.internal:8020
+      VITE_PROXY_TARGET: http://marketing-parser:8503
+      VITE_IDENTITY_PROXY_TARGET: http://host.docker.internal:8500
     ports:
-      - "5178:5178"
+      - "7503:7503"
     depends_on:
       marketing-parser:
         condition: service_healthy

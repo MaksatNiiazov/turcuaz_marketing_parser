@@ -9,13 +9,13 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 alembic upgrade head
-uvicorn app.main:app --host 0.0.0.0 --port 8040 --reload
+uvicorn app.main:app --host 0.0.0.0 --port 8503 --reload
 ```
 
 Open API docs:
 
 ```text
-http://localhost:8040/docs
+http://localhost:8503/docs
 ```
 
 ## Run With Docker Compose
@@ -27,13 +27,13 @@ docker compose up --build
 The API will be available at:
 
 ```text
-http://localhost:8040/docs
+http://localhost:8503/docs
 ```
 
 The admin UI will be available at:
 
 ```text
-http://localhost:5178
+http://localhost:7503
 ```
 
 SQLite data is stored in the `marketing_parser_data` Docker volume. Migrations run automatically
@@ -78,7 +78,7 @@ Identity settings:
 AUTH_ENABLED=true
 IDENTITY_SECRET_KEY=dev-change-me-32-byte-secret-key-for-turkuaz-identity
 IDENTITY_ALGORITHM=HS256
-VITE_IDENTITY_PROXY_TARGET=http://localhost:8020
+VITE_IDENTITY_PROXY_TARGET=http://localhost:8500
 ```
 
 Register the `market_parser` service in Identity and assign these permissions to the roles that

@@ -13,6 +13,6 @@ RUN ln -s /workspace/marketing_parser/frontend/node_modules /workspace/turkuaz-u
 
 COPY marketing_parser/frontend ./
 
-EXPOSE 5178
+EXPOSE 7503
 
-CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "5178"]
+CMD ["npm", "run", "dev", "--", "--host", "0.0.0.0", "--port", "7503"]
