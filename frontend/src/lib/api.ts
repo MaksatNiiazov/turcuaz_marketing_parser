@@ -15,6 +15,8 @@ const IDENTITY_API_FALLBACK_BASE_URL =
   import.meta.env.VITE_IDENTITY_API_FALLBACK_BASE_URL || `${localApiUrl(8500)}/api/v1`;
 const TOKEN_KEY = 'identity_access_token';
 const FALLBACK_TOKEN_KEY = 'access_token';
+export const DEV_ADMIN_EMAIL = import.meta.env.VITE_DEV_ADMIN_EMAIL || 'admin@example.com';
+export const DEV_ADMIN_PASSWORD = import.meta.env.VITE_DEV_ADMIN_PASSWORD || 'admin123';
 
 export function getToken(): string | null {
   return localStorage.getItem(TOKEN_KEY) || localStorage.getItem(FALLBACK_TOKEN_KEY);
@@ -216,15 +218,42 @@ export function fetchCategoryStats(
 }
 
 export async function login(email: string, password: string): Promise<void> {
-  const data = await requestIdentityJson<{ access_token: string }>('/auth/login', {
-    method: 'POST',
-    body: JSON.stringify({ email, password }),
+  const data = await loginViaIdentity(email, password).catch((error) => {
+    if (!shouldUseDevAdminLogin(error, email, password)) throw error;
+    return loginViaDevAdmin(email, password);
   });
   setToken(data.access_token);
 }
 
 export function fetchMe(): Promise<CurrentUser> {
-  return requestIdentityJson<CurrentUser>('/auth/me');
+  return requestJson<CurrentUser>('/api/v1/auth/me');
+}
+
+export async function loginAsDevAdmin(): Promise<void> {
+  const data = await loginViaDevAdmin(DEV_ADMIN_EMAIL, DEV_ADMIN_PASSWORD);
+  setToken(data.access_token);
+}
+
+function loginViaIdentity(email: string, password: string): Promise<{ access_token: string }> {
+  return requestIdentityJson<{ access_token: string }>('/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+function loginViaDevAdmin(email: string, password: string): Promise<{ access_token: string }> {
+  return requestJson<{ access_token: string }>('/api/v1/auth/dev-admin-login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+function shouldUseDevAdminLogin(error: unknown, email: string, password: string): boolean {
+  return (
+    shouldRetryIdentityRequest(error) &&
+    email.trim().toLowerCase() === DEV_ADMIN_EMAIL.toLowerCase() &&
+    password === DEV_ADMIN_PASSWORD
+  );
 }
 
 export async function downloadFile(path: string, fallbackFilename: string): Promise<void> {

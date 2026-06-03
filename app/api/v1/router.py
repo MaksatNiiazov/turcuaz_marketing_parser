@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from app.api.v1 import health
+from app.api.v1 import auth, health
 from app.modules.market_parser.api import (
     routes_categories,
     routes_export,
@@ -12,10 +12,10 @@ from app.modules.market_parser.api import (
 
 api_router = APIRouter()
 api_router.include_router(health.router, tags=["system"])
+api_router.include_router(auth.router, prefix="/auth", tags=["auth"])
 api_router.include_router(routes_sources.router, prefix="/market-parser", tags=["market-parser"])
 api_router.include_router(routes_categories.router, prefix="/market-parser", tags=["market-parser"])
 api_router.include_router(routes_runs.router, prefix="/market-parser", tags=["market-parser"])
 api_router.include_router(routes_products.router, prefix="/market-parser", tags=["market-parser"])
 api_router.include_router(routes_stats.router, prefix="/market-parser", tags=["market-parser"])
 api_router.include_router(routes_export.router, prefix="/market-parser", tags=["market-parser"])
-

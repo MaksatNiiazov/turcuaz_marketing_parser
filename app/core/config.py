@@ -17,6 +17,10 @@ class Settings(BaseSettings):
     auth_enabled: bool = True
     identity_secret_key: str = "dev-change-me-32-byte-secret-key-for-turkuaz-identity"
     identity_algorithm: str = "HS256"
+    dev_admin_login_enabled: bool = True
+    dev_admin_email: str = "admin@example.com"
+    dev_admin_password: str = "admin123"
+    dev_admin_full_name: str = "Parser Admin"
 
     model_config = SettingsConfigDict(env_file=".env", env_prefix="", extra="ignore")
 

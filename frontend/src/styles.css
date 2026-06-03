@@ -134,6 +134,7 @@
 }
 
 .text-button,
+.secondary-button,
 .primary-button {
   display: inline-flex;
   align-items: center;
@@ -156,6 +157,12 @@
   color: var(--text);
 }
 
+.secondary-button {
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  color: var(--text);
+}
+
 .primary-button {
   border: 0;
   background: linear-gradient(135deg, var(--teal), var(--teal-strong));
@@ -163,6 +170,7 @@
 }
 
 .text-button:disabled,
+.secondary-button:disabled,
 .primary-button:disabled {
   cursor: not-allowed;
   opacity: 0.62;

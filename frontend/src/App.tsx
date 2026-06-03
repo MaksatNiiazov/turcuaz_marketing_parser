@@ -4,6 +4,8 @@ import { AppShell, fetchServiceRegistry, Icon, serviceLinksFromRegistry } from '
 import type { ServiceRegistryItem } from '@turkuaz/ui';
 import {
   createSource,
+  DEV_ADMIN_EMAIL,
+  DEV_ADMIN_PASSWORD,
   downloadFile,
   fetchCategories,
   fetchCategoryStats,
@@ -16,6 +18,7 @@ import {
   fetchSources,
   getToken,
   login,
+  loginAsDevAdmin,
   setCategoryEnabled,
   startRun,
   syncCategories,
@@ -32,6 +35,7 @@ import type {
 } from './lib/types';
 
 const IDENTITY_API_BASE_URL = import.meta.env.VITE_IDENTITY_API_BASE_URL || '/identity-api';
+const API_DOCS_URL = backendUrl(8503, '/docs');
 
 type ViewMode = 'categories' | 'runs' | 'products' | 'reports' | 'export';
 
@@ -337,7 +341,7 @@ export function App() {
       navItems={navItems}
       sideLinks={[
         ...serviceLinksFromRegistry(serviceApps, { currentServiceCode: 'market_parser' }),
-        { href: '/docs', label: 'Swagger', icon: 'file', permissions: ['market_parser.products.read'] },
+        { href: API_DOCS_URL, label: 'Swagger', icon: 'file', permissions: ['market_parser.products.read'] },
       ]}
       accessClaims={currentUser}
       tokenStorageKeys={['identity_access_token', 'access_token']}
@@ -363,7 +367,7 @@ export function App() {
       environment="local"
       version="v0.1.0"
       apiStatus={isConnectivityError(state.error || actionState.error) ? 'offline' : 'online'}
-      footerLinks={[{ href: '/docs', label: 'Swagger' }]}
+      footerLinks={[{ href: API_DOCS_URL, label: 'Swagger' }]}
     >
       {state.error || actionState.error ? (
         <div className="notice">{errorMessage(state.error || actionState.error)}</div>
@@ -479,8 +483,8 @@ function LoginScreen({
   error: string | null;
   onLoggedIn: () => void;
 }) {
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState(DEV_ADMIN_EMAIL);
+  const [password, setPassword] = useState(DEV_ADMIN_PASSWORD);
   const [submitState, setSubmitState] = useState<LoadState>({ loading: false, error: null });
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -498,6 +502,20 @@ function LoginScreen({
     }
   }
 
+  async function handleDevAdminLogin() {
+    setSubmitState({ loading: true, error: null });
+    try {
+      await loginAsDevAdmin();
+      setSubmitState({ loading: false, error: null });
+      onLoggedIn();
+    } catch (submitError) {
+      setSubmitState({
+        loading: false,
+        error: submitError instanceof Error ? submitError.message : String(submitError),
+      });
+    }
+  }
+
   return (
     <main className="login-page">
       <section className="login-panel">
@@ -505,7 +523,7 @@ function LoginScreen({
         <div>
           <p className="login-kicker">Turkuaz Ecosystem</p>
           <h1>Market Parser</h1>
-          <p>Войдите через Identity, чтобы работать с категориями, запусками, товарами и экспортом.</p>
+          <p>Войдите через Identity или временный локальный admin-доступ парсера.</p>
         </div>
         {error || submitState.error ? <div className="notice">{submitState.error || error}</div> : null}
         <form className="login-form" onSubmit={(event) => void handleSubmit(event)}>
@@ -533,10 +551,24 @@ function LoginScreen({
             <Icon name="shield" size={16} />
             Войти
           </button>
+          <button
+            className="secondary-button"
+            type="button"
+            disabled={submitState.loading}
+            onClick={() => void handleDevAdminLogin()}
+          >
+            <Icon name="key" size={16} />
+            Войти как админ
+          </button>
         </form>
       </section>
     </main>
   );
+}
+
+function backendUrl(port: number, path = ''): string {
+  if (typeof window === 'undefined') return `http://localhost:${port}${path}`;
+  return `${window.location.protocol}//${window.location.hostname}:${port}${path}`;
 }
 
 function CategoriesView({
