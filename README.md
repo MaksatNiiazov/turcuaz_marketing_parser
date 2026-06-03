@@ -82,6 +82,17 @@ $env:VITE_IDENTITY_API_BASE_URL = "http://SERVER_IP_OR_DOMAIN:8500/api/v1"
 npm run build
 ```
 
+If IIS serves the built `dist` folder on port `7503` and `VITE_API_BASE_URL` is left empty, IIS
+must reverse-proxy API paths to the backend. Without that, `/api/v1/...` returns IIS `404`.
+Use either:
+
+```text
+IIS 7503 -> /api/* reverse proxy -> http://127.0.0.1:8503/api/*
+```
+
+or rebuild the frontend with `VITE_API_BASE_URL=http://SERVER_IP_OR_DOMAIN:8503` and open TCP port
+`8503` in Windows Firewall.
+
 ## Module
 
 The first source is Globus Online:

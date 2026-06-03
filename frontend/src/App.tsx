@@ -3,6 +3,7 @@ import type { FormEvent, ReactNode } from 'react';
 import { AppShell, fetchServiceRegistry, Icon, serviceLinksFromRegistry } from '@turkuaz/ui';
 import type { ServiceRegistryItem } from '@turkuaz/ui';
 import {
+  clearToken,
   createSource,
   DEV_ADMIN_EMAIL,
   DEV_ADMIN_PASSWORD,
@@ -285,6 +286,27 @@ export function App() {
     }
   }
 
+  function handleLogout() {
+    clearToken();
+    setIsAuthenticated(false);
+    setCurrentUser(null);
+    setServiceApps([]);
+    setSources([]);
+    setSelectedSourceId(null);
+    setCategories([]);
+    setRuns([]);
+    setProducts([]);
+    setSelectedCategoryIds([]);
+    setActiveRunId(null);
+    setSelectedProductId(null);
+    setSelectedCategoryId(null);
+    setProductStats(null);
+    setCategoryStats(null);
+    setSnapshots([]);
+    setState({ loading: false, error: null });
+    setActionState({ loading: false, error: null });
+  }
+
   const visibleCategories = filterCategoryTree(categories, query);
 
   const metrics = [
@@ -364,6 +386,16 @@ export function App() {
         { key: 'refresh', label: 'Обновить', icon: 'refresh', onClick: () => void loadData() },
         { key: 'source', label: 'Источник', icon: 'plus', onClick: () => setShowSourceForm((value) => !value) },
       ]}
+      user={
+        currentUser
+          ? {
+              name: currentUser.full_name || currentUser.email,
+              email: currentUser.email,
+              role: currentUser.roles[0],
+              actions: [{ key: 'logout', label: 'Выйти', icon: 'logout', onClick: handleLogout }],
+            }
+          : undefined
+      }
       environment="local"
       version="v0.1.0"
       apiStatus={isConnectivityError(state.error || actionState.error) ? 'offline' : 'online'}
