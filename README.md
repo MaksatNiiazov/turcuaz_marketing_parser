@@ -39,6 +39,49 @@ http://localhost:7503
 SQLite data is stored in the `marketing_parser_data` Docker volume. Migrations run automatically
 before the API starts.
 
+## Run On Windows Server Without Docker
+
+When the frontend is opened from another computer, do not put `localhost` in browser-facing
+frontend variables. In the browser, `localhost` means the user's computer, not the Windows server.
+
+Start the backend on the server:
+
+```powershell
+py -3.12 -m venv .venv
+.\.venv\Scripts\Activate.ps1
+pip install -e ".[dev]"
+$env:DATABASE_URL = "sqlite:///./data/marketing_parser.db"
+$env:BACKEND_CORS_ORIGINS = "http://SERVER_IP_OR_DOMAIN:7503"
+alembic upgrade head
+uvicorn app.main:app --host 0.0.0.0 --port 8503
+```
+
+For a development-style frontend with Vite proxy, start it on the same server:
+
+```powershell
+cd frontend
+npm install
+$env:VITE_PROXY_TARGET = "http://127.0.0.1:8503"
+$env:VITE_IDENTITY_PROXY_TARGET = "http://127.0.0.1:8500"
+npm run dev -- --host 0.0.0.0 --port 7503
+```
+
+Open:
+
+```text
+http://SERVER_IP_OR_DOMAIN:7503
+```
+
+If the frontend is built and served as static files without the Vite dev server proxy, set the
+public backend URL before building:
+
+```powershell
+cd frontend
+$env:VITE_API_BASE_URL = "http://SERVER_IP_OR_DOMAIN:8503"
+$env:VITE_IDENTITY_API_BASE_URL = "http://SERVER_IP_OR_DOMAIN:8500/api/v1"
+npm run build
+```
+
 ## Module
 
 The first source is Globus Online:
