@@ -21,10 +21,14 @@ class Settings(BaseSettings):
     backend_cors_origin_regex: str | None = r"https?://[^/]+:7503"
     parser_request_timeout: int = 20
     parser_max_retries: int = 3
-    parser_request_delay_ms: int = 500
-    parser_product_detail_request_delay_ms: int = 0
-    parser_product_detail_concurrency: int = 12
-    parser_concurrency: int = 3
+    parser_polite_mode_enabled: bool = True
+    parser_request_delay_ms: int = 900
+    parser_request_jitter_ms: int = 700
+    parser_retry_base_delay_ms: int = 1000
+    parser_rate_limit_cooldown_ms: int = 60000
+    parser_product_detail_request_delay_ms: int = 300
+    parser_product_detail_concurrency: int = 4
+    parser_concurrency: int = 2
     parser_user_agent: str = (
         "Mozilla/5.0 (compatible; MarketingParser/0.1; +https://globus-online.kg)"
     )

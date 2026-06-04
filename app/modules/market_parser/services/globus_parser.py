@@ -5,7 +5,9 @@ import hashlib
 import html
 import json
 import logging
+import random
 import re
+import time
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from typing import Any
@@ -67,6 +69,8 @@ class GlobusParser(BaseMarketParser):
             "Accept-Language": "ru,en;q=0.8",
         }
         self._sku_by_product_id: dict[str, str] = {}
+        self._request_gate = asyncio.Lock()
+        self._throttle_until = 0.0
 
     async def fetch_categories(self) -> list[ParsedCategory]:
         text = await self._get_text(self.base_url)
@@ -120,8 +124,13 @@ class GlobusParser(BaseMarketParser):
     async def _request_text(self, client: httpx.AsyncClient, url: str) -> str:
         last_error: Exception | None = None
         for attempt in range(settings.parser_max_retries):
+            await self._wait_before_request(attempt)
             try:
                 response = await client.get(url)
+                if response.status_code in {403, 404, 429}:
+                    if response.status_code in {403, 429}:
+                        self._pause_after_limit()
+                    response.raise_for_status()
                 if response.status_code >= 500:
                     raise httpx.HTTPStatusError(
                         f"Server error {response.status_code}",
@@ -132,10 +141,43 @@ class GlobusParser(BaseMarketParser):
                 return response.text
             except (httpx.TimeoutException, httpx.HTTPStatusError, httpx.TransportError) as exc:
                 last_error = exc
+                if isinstance(exc, httpx.HTTPStatusError) and exc.response.status_code in {403, 404, 429}:
+                    raise
                 logger.warning("globus request failed", extra={"url": url, "attempt": attempt + 1})
-                await asyncio.sleep(0.4 * (attempt + 1))
+                await asyncio.sleep(self._retry_delay_seconds(attempt))
         assert last_error is not None
         raise last_error
+
+    async def _wait_before_request(self, attempt: int) -> None:
+        async with self._request_gate:
+            cooldown = max(0.0, self._throttle_until - time.monotonic())
+            if cooldown:
+                await asyncio.sleep(cooldown)
+            delay_ms = settings.parser_request_delay_ms
+            if settings.parser_polite_mode_enabled:
+                delay_ms = max(delay_ms, 900)
+            if attempt > 0:
+                delay_ms += settings.parser_retry_base_delay_ms * attempt
+            jitter_ms = settings.parser_request_jitter_ms
+            if settings.parser_polite_mode_enabled:
+                jitter_ms = max(jitter_ms, 700)
+            delay_ms += random.randint(0, max(jitter_ms, 0))
+            if delay_ms > 0:
+                await asyncio.sleep(delay_ms / 1000)
+
+    def _pause_after_limit(self) -> None:
+        cooldown = max(settings.parser_rate_limit_cooldown_ms, 0) / 1000
+        if cooldown:
+            self._throttle_until = max(self._throttle_until, time.monotonic() + cooldown)
+
+    @staticmethod
+    def _retry_delay_seconds(attempt: int) -> float:
+        base = max(settings.parser_retry_base_delay_ms, 0) / 1000
+        jitter_ms = settings.parser_request_jitter_ms
+        if settings.parser_polite_mode_enabled:
+            jitter_ms = max(jitter_ms, 700)
+        jitter = random.uniform(0, max(jitter_ms, 0) / 1000)
+        return base * (2 ** attempt) + jitter
 
     def normalize_product(
         self, item: dict[str, Any], category: ParserCategory | None = None
@@ -189,14 +231,19 @@ class GlobusParser(BaseMarketParser):
             return
 
         detail_concurrency = max(settings.parser_product_detail_concurrency, 1)
+        if settings.parser_polite_mode_enabled:
+            detail_concurrency = min(detail_concurrency, 4)
         semaphore = asyncio.Semaphore(detail_concurrency)
 
         async def enrich(client: httpx.AsyncClient, item: dict[str, Any]) -> None:
             product_id = clean_text(item.get("id"))
             product_url = urljoin(self.base_url, f"/ru-kg/good/{product_id}")
             async with semaphore:
-                if settings.parser_product_detail_request_delay_ms > 0:
-                    await asyncio.sleep(settings.parser_product_detail_request_delay_ms / 1000)
+                detail_delay_ms = settings.parser_product_detail_request_delay_ms
+                if settings.parser_polite_mode_enabled:
+                    detail_delay_ms = max(detail_delay_ms, 300)
+                if detail_delay_ms > 0:
+                    await asyncio.sleep(detail_delay_ms / 1000)
                 try:
                     detail = await self._fetch_product_detail(product_url, product_id, client)
                 except Exception:

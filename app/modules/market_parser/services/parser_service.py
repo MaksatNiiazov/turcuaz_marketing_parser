@@ -120,7 +120,10 @@ class ParserService:
         errors: list[str] = []
 
         tasks = []
-        semaphore = asyncio.Semaphore(settings.parser_concurrency)
+        parser_concurrency = max(settings.parser_concurrency, 1)
+        if settings.parser_polite_mode_enabled:
+            parser_concurrency = min(parser_concurrency, 2)
+        semaphore = asyncio.Semaphore(parser_concurrency)
         for category in categories:
             run_category = self.runs.start_category(run.id, category.id)
             self.db.commit()

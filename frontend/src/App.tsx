@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { AppShell, fetchServiceRegistry, Icon, serviceLinksFromRegistry } from '@turkuaz/ui';
 import type { ServiceRegistryItem } from '@turkuaz/ui';
 import {
   clearToken,
-  createSource,
   DEV_ADMIN_EMAIL,
   DEV_ADMIN_PASSWORD,
   downloadFile,
@@ -84,13 +83,6 @@ export function App() {
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState<ProductFilters>(initialProductFilters);
   const [parseAllEnabled, setParseAllEnabled] = useState(true);
-  const [showSourceForm, setShowSourceForm] = useState(false);
-  const [sourceForm, setSourceForm] = useState({
-    name: 'Globus Online',
-    code: 'globus',
-    base_url: 'https://globus-online.kg/ru-kg',
-    type: 'html',
-  });
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [serviceApps, setServiceApps] = useState<ServiceRegistryItem[]>([]);
   const [isAuthenticated, setIsAuthenticated] = useState(() => Boolean(getToken()));
@@ -208,19 +200,6 @@ export function App() {
 
     return () => window.clearInterval(timer);
   }, [activeRunId, runs]);
-
-  async function handleCreateSource() {
-    setActionState({ loading: true, error: null });
-    try {
-      const source = await createSource({ ...sourceForm, is_active: true });
-      setShowSourceForm(false);
-      setSelectedSourceId(source.id);
-      await loadData();
-      setActionState({ loading: false, error: null });
-    } catch (error) {
-      setActionState({ loading: false, error: error instanceof Error ? error.message : String(error) });
-    }
-  }
 
   async function handleSyncCategories() {
     if (!selectedSource) return;
@@ -384,7 +363,6 @@ export function App() {
       }}
       headerActions={[
         { key: 'refresh', label: 'Обновить', icon: 'refresh', onClick: () => void loadData() },
-        { key: 'source', label: 'Источник', icon: 'plus', onClick: () => setShowSourceForm((value) => !value) },
       ]}
       user={
         currentUser
@@ -414,44 +392,6 @@ export function App() {
           </div>
         ))}
       </section>
-
-      {showSourceForm ? (
-        <section className="panel source-form">
-          <div className="panel-header compact">
-            <div>
-              <h2>Источник данных</h2>
-              <p>Быстрое подключение Globus Online или будущего конкурента.</p>
-            </div>
-          </div>
-          <div className="form-row four">
-            <label>
-              <span>Название</span>
-              <input value={sourceForm.name} onChange={(event) => setSourceForm({ ...sourceForm, name: event.target.value })} />
-            </label>
-            <label>
-              <span>Код</span>
-              <input value={sourceForm.code} onChange={(event) => setSourceForm({ ...sourceForm, code: event.target.value })} />
-            </label>
-            <label>
-              <span>URL</span>
-              <input value={sourceForm.base_url} onChange={(event) => setSourceForm({ ...sourceForm, base_url: event.target.value })} />
-            </label>
-            <label>
-              <span>Тип</span>
-              <select value={sourceForm.type} onChange={(event) => setSourceForm({ ...sourceForm, type: event.target.value })}>
-                <option value="html">html</option>
-                <option value="api">api</option>
-              </select>
-            </label>
-          </div>
-          <div className="panel-actions">
-            <button className="primary-button" type="button" disabled={actionState.loading} onClick={() => void handleCreateSource()}>
-              <Icon name="plus" size={16} />
-              Добавить источник
-            </button>
-          </div>
-        </section>
-      ) : null}
 
       {view === 'categories' ? (
         <CategoriesView
@@ -603,6 +543,28 @@ function backendUrl(port: number, path = ''): string {
   return `${window.location.protocol}//${window.location.hostname}:${port}${path}`;
 }
 
+function CategoryCheckbox({
+  checked,
+  disabled,
+  indeterminate,
+  onChange,
+}: {
+  checked: boolean;
+  disabled: boolean;
+  indeterminate: boolean;
+  onChange: () => void;
+}) {
+  const ref = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (ref.current) {
+      ref.current.indeterminate = indeterminate;
+    }
+  }, [indeterminate]);
+
+  return <input ref={ref} type="checkbox" disabled={disabled} checked={checked} onChange={onChange} />;
+}
+
 function CategoriesView({
   categories,
   allCategories,
@@ -650,12 +612,28 @@ function CategoriesView({
     });
   }, [categories.length]);
 
-  function toggleSelected(id: number) {
-    onSelectCategories(
-      selectedCategoryIds.includes(id)
-        ? selectedCategoryIds.filter((item) => item !== id)
-        : [...selectedCategoryIds, id],
-    );
+  function collectSelectableCategoryIds(category: ParserCategory): number[] {
+    const childRows = childrenByParent.get(category.id) ?? [];
+    if (!childRows.length) {
+      return [category.id];
+    }
+    return childRows.flatMap((child) => collectSelectableCategoryIds(child));
+  }
+
+  function toggleSelected(category: ParserCategory) {
+    const targetIds = collectSelectableCategoryIds(category);
+    const nextIds = new Set(selectedCategoryIds);
+    const allSelected = targetIds.every((id) => nextIds.has(id));
+
+    for (const id of targetIds) {
+      if (allSelected) {
+        nextIds.delete(id);
+      } else {
+        nextIds.add(id);
+      }
+    }
+
+    onSelectCategories([...nextIds]);
   }
 
   function toggleExpanded(id: number) {
@@ -669,14 +647,18 @@ function CategoriesView({
     const hasChildren = childRows.length > 0;
     const isExpanded = expandedCategoryIds.includes(category.id);
     const status = hasChildren ? 'group' : category.is_enabled ? 'enabled' : 'disabled';
+    const selectableIds = collectSelectableCategoryIds(category);
+    const selectedCount = selectableIds.filter((id) => selectedCategoryIds.includes(id)).length;
+    const isSelected = selectedCount > 0 && selectedCount === selectableIds.length;
+    const isPartiallySelected = selectedCount > 0 && selectedCount < selectableIds.length;
     return (
       <tr className={level === 'parent' ? 'category-group-row' : 'category-child-row'} key={category.id}>
         <td>
-          <input
-            type="checkbox"
-            disabled={parseAllEnabled || (hasChildren && childRows.length === 0)}
-            checked={selectedCategoryIds.includes(category.id)}
-            onChange={() => toggleSelected(category.id)}
+          <CategoryCheckbox
+            disabled={parseAllEnabled || selectableIds.length === 0}
+            checked={isSelected}
+            indeterminate={isPartiallySelected}
+            onChange={() => toggleSelected(category)}
           />
         </td>
         <td>
@@ -964,6 +946,7 @@ function ProductsView({
             <thead>
               <tr>
                 <th>SKU</th>
+                <th>External ID</th>
                 <th>Товар</th>
                 <th>Категория</th>
                 <th>Unit</th>
@@ -977,7 +960,8 @@ function ProductsView({
                   key={product.id}
                   onClick={() => onSelectProduct(product.id)}
                 >
-                  <td><code>{product.sku || product.external_sku}</code></td>
+                  <td><code>{product.sku || '-'}</code></td>
+                  <td><code>{product.external_sku}</code></td>
                   <td>
                     <div className="product-cell">
                       {product.image_url ? <img src={product.image_url} alt="" /> : <span className="image-fallback" />}
@@ -1287,7 +1271,7 @@ function ExportView({ selectedCategoryId, from, to }: { selectedCategoryId: numb
   const items = [
     {
       title: 'Все товары',
-      text: 'Совместимая выгрузка с sku, name, title, price, discount_price, media.',
+      text: 'Выгрузка с отдельными sku, external_id, ценами и статусом доступности.',
       path: '/api/v1/market-parser/export/products.xlsx',
       filename: 'market_products.xlsx',
     },

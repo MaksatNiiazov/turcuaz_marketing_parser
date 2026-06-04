@@ -135,19 +135,6 @@ export function fetchSources(): Promise<ParserSource[]> {
   return requestJson<ParserSource[]>('/api/v1/market-parser/sources');
 }
 
-export function createSource(payload: {
-  name: string;
-  code: string;
-  base_url: string;
-  type: string;
-  is_active: boolean;
-}): Promise<ParserSource> {
-  return requestJson<ParserSource>('/api/v1/market-parser/sources', {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  });
-}
-
 export function fetchCategories(sourceId?: number): Promise<ParserCategory[]> {
   return requestJson<ParserCategory[]>(
     `/api/v1/market-parser/categories${params({ source_id: sourceId })}`,

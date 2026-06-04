@@ -34,6 +34,7 @@ class ExportService:
             [
                 "source",
                 "sku",
+                "external_id",
                 "name",
                 "title",
                 "parent_category",
@@ -42,7 +43,7 @@ class ExportService:
                 "discount_price",
                 "media",
                 "product_url",
-                "is_available",
+                "availability",
                 "collected_at",
             ],
         )
@@ -67,14 +68,25 @@ class ExportService:
         product_rows = []
         self._write_header(
             ws_products,
-            ["sku", "name", "title", "parent_category", "category", "current_price", "discount_price", "media"],
+            [
+                "sku",
+                "external_id",
+                "name",
+                "title",
+                "parent_category",
+                "category",
+                "current_price",
+                "discount_price",
+                "media",
+                "availability",
+            ],
         )
         for product in products:
             snapshot = latest.get(product.id)
-            product_sku = export_sku(product)
             parent_name, category_name = category_names(product)
             row = [
-                product_sku,
+                product.sku,
+                product.external_sku,
                 product.name,
                 product.unit,
                 parent_name,
@@ -82,35 +94,46 @@ class ExportService:
                 effective_price(snapshot) if snapshot else None,
                 snapshot.discount_price if snapshot else None,
                 product.image_url,
+                availability_text(snapshot.is_available if snapshot else None),
             ]
             product_rows.append(row)
             ws_products.append(row)
 
         ws_prices = wb["Цены"]
-        self._write_header(ws_prices, ["date", "sku", "name", "price", "discount_price", "effective_price"])
+        self._write_header(
+            ws_prices,
+            ["date", "sku", "external_id", "name", "price", "discount_price", "effective_price", "availability"],
+        )
         ws_discounts = wb["Скидки"]
-        self._write_header(ws_discounts, ["date", "sku", "name", "price", "discount_price", "discount_percent"])
+        self._write_header(
+            ws_discounts,
+            ["date", "sku", "external_id", "name", "price", "discount_price", "discount_percent", "availability"],
+        )
         for product in products:
             for snapshot in self.snapshots.list_for_product(product.id, from_date, to_date):
                 ws_prices.append(
                     [
                         snapshot.collected_at,
-                        export_sku(product),
+                        product.sku,
+                        product.external_sku,
                         product.name,
                         snapshot.price,
                         snapshot.discount_price,
                         effective_price(snapshot),
+                        availability_text(snapshot.is_available),
                     ]
                 )
                 if snapshot.discount_price is not None or snapshot.discount_percent is not None:
                     ws_discounts.append(
                         [
                             snapshot.collected_at,
-                            export_sku(product),
+                            product.sku,
+                            product.external_sku,
                             product.name,
                             snapshot.price,
                             snapshot.discount_price,
                             snapshot.discount_percent,
+                            availability_text(snapshot.is_available),
                         ]
                     )
 
@@ -125,8 +148,19 @@ class ExportService:
         self._category_sheets(
             wb,
             product_rows,
-            headers=["sku", "name", "title", "parent_category", "category", "current_price", "discount_price", "media"],
-            parent_index=3,
+            headers=[
+                "sku",
+                "external_id",
+                "name",
+                "title",
+                "parent_category",
+                "category",
+                "current_price",
+                "discount_price",
+                "media",
+                "availability",
+            ],
+            parent_index=4,
         )
         self._summary_sheet(wb)
         return save_workbook(wb)
@@ -135,7 +169,8 @@ class ExportService:
         parent_name, category_name = category_names(product)
         return [
             product.source.code,
-            export_sku(product),
+            product.sku,
+            product.external_sku,
             product.name,
             product.unit,
             parent_name,
@@ -144,7 +179,7 @@ class ExportService:
             snapshot.discount_price if snapshot else None,
             product.image_url,
             product.product_url,
-            snapshot.is_available if snapshot else None,
+            availability_text(snapshot.is_available if snapshot else None),
             snapshot.collected_at if snapshot else None,
         ]
 
@@ -153,12 +188,13 @@ class ExportService:
         wb: Workbook,
         rows: list[list],
         headers: list[str] | None = None,
-        parent_index: int = 4,
+        parent_index: int = 5,
     ) -> None:
         if headers is None:
             headers = [
                 "source",
                 "sku",
+                "external_id",
                 "name",
                 "title",
                 "parent_category",
@@ -167,7 +203,7 @@ class ExportService:
                 "discount_price",
                 "media",
                 "product_url",
-                "is_available",
+                "availability",
                 "collected_at",
             ]
         grouped: dict[str, list[list]] = {}
@@ -192,7 +228,7 @@ class ExportService:
         ws = wb["Свод"]
         self._write_header(ws, ["Метрика", "Значение"])
         ws.append(["Источник", "Globus Online"])
-        ws.append(["Совместимые поля", "sku, name, title, price, discount_price, media"])
+        ws.append(["Совместимые поля", "sku, external_id, name, title, price, discount_price, media"])
 
     @staticmethod
     def _write_header(ws, values: list[str]) -> None:
@@ -224,8 +260,12 @@ def category_names(product) -> tuple[str | None, str | None]:
     return category.name, category.name
 
 
-def export_sku(product) -> str:
-    return product.sku or product.external_sku
+def availability_text(value: bool | None) -> str:
+    if value is True:
+        return "доступно"
+    if value is False:
+        return "нет в наличии"
+    return "неизвестно"
 
 
 def unique_sheet_title(wb: Workbook, value: str) -> str:

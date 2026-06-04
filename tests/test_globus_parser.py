@@ -1,6 +1,7 @@
 import json
 from decimal import Decimal
 
+import httpx
 import pytest
 
 from app.core.config import settings
@@ -137,6 +138,29 @@ async def test_fetch_products_skips_detail_when_sku_is_present(monkeypatch) -> N
 def test_discount_percent_empty_when_no_discount() -> None:
     assert GlobusParser.calculate_discount_percent(Decimal("100"), Decimal("100")) is None
     assert GlobusParser.calculate_discount_percent(None, Decimal("90")) is None
+
+
+@pytest.mark.asyncio
+async def test_request_text_does_not_retry_not_found(monkeypatch) -> None:
+    monkeypatch.setattr(settings, "parser_polite_mode_enabled", False)
+    monkeypatch.setattr(settings, "parser_request_delay_ms", 0)
+    monkeypatch.setattr(settings, "parser_request_jitter_ms", 0)
+    parser = GlobusParser()
+
+    class FakeClient:
+        calls = 0
+
+        async def get(self, url: str):
+            self.calls += 1
+            request = httpx.Request("GET", url)
+            return httpx.Response(404, request=request)
+
+    client = FakeClient()
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await parser._request_text(client, "https://globus-online.kg/ru-kg/catalog/grocery/category/missing")
+
+    assert client.calls == 1
 
 
 def test_extract_category_tree_with_parent_and_child() -> None:

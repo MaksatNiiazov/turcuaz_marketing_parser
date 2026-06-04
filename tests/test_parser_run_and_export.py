@@ -126,7 +126,11 @@ def test_export_xlsx(db_session) -> None:
 
     assert "Дом и Уют" in workbook.sheetnames
     assert workbook["Товары"]["A1"].value == "sku"
+    assert workbook["Товары"]["B1"].value == "external_id"
     assert workbook["Товары"]["A2"].value == "Ц0180022"
-    assert workbook["Товары"]["D2"].value == "Дом и Уют"
-    assert workbook["Товары"]["E2"].value == "Для кухни"
-    assert workbook["Скидки"]["C2"].value == "Шоколад"
+    assert workbook["Товары"]["B2"].value == "external-1"
+    assert workbook["Товары"]["E2"].value == "Дом и Уют"
+    assert workbook["Товары"]["F2"].value == "Для кухни"
+    assert workbook["Товары"]["J2"].value == "доступно"
+    assert workbook["Скидки"]["D2"].value == "Шоколад"
+    assert workbook["Скидки"]["H2"].value == "доступно"
