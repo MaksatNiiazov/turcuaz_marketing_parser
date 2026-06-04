@@ -6,7 +6,7 @@ import pytest
 import httpx
 from openpyxl import load_workbook
 
-from app.modules.market_parser.models.entities import ParserCategory, ParserSource
+from app.modules.market_parser.models.entities import ParserCategory, ParserRun, ParserRunCategory, ParserSource
 from app.modules.market_parser.repositories.product_repo import ProductRepository
 from app.modules.market_parser.schemas.run import RunCreate
 from app.modules.market_parser.services.export_service import ExportService
@@ -14,6 +14,7 @@ from app.modules.market_parser.services.globus_parser import ParsedProduct
 from app.modules.market_parser.services.parser_service import ParserService
 from app.modules.market_parser.services.parser_service import summarize_parser_error
 from app.modules.market_parser.services.run_control import request_run_stop
+from app.modules.market_parser.services.run_recovery import recover_interrupted_runs
 from app.modules.market_parser.services.snapshot_service import SnapshotService
 
 
@@ -106,6 +107,40 @@ async def test_run_can_be_stopped(db_session, monkeypatch) -> None:
     assert finished.status == "stopped"
     assert finished.processed_categories == 0
     assert "Остановлено пользователем" in (finished.error_message or "")
+
+
+def test_recover_interrupted_stopping_run(db_session) -> None:
+    source, good, _ = seed_source_categories(db_session)
+    run = ParserRun(
+        source_id=source.id,
+        status="stopping",
+        started_at=datetime(2026, 6, 4, tzinfo=timezone.utc),
+        total_categories=1,
+        processed_categories=0,
+        total_products=0,
+        saved_products=0,
+        error_message="Остановка запрошена пользователем",
+    )
+    db_session.add(run)
+    db_session.flush()
+    db_session.add(
+        ParserRunCategory(
+            run_id=run.id,
+            category_id=good.id,
+            status="running",
+            started_at=datetime(2026, 6, 4, tzinfo=timezone.utc),
+        )
+    )
+    db_session.commit()
+
+    recovered = recover_interrupted_runs(db_session)
+    db_session.commit()
+
+    assert recovered == 1
+    assert run.status == "stopped"
+    assert run.finished_at is not None
+    assert "Остановлено после перезапуска сервера" in (run.error_message or "")
+    assert run.categories[0].status == "stopped"
 
 
 def test_export_xlsx(db_session) -> None:

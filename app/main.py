@@ -13,6 +13,7 @@ from app.db.base import Base
 from app.db.session import engine
 from app.modules.market_parser.services.auto_run_scheduler import AutoRunScheduler
 from app.modules.market_parser.services.bootstrap import bootstrap_market_parser
+from app.modules.market_parser.services.run_recovery import recover_interrupted_runs
 
 
 def bootstrap_app() -> None:
@@ -29,6 +30,7 @@ bootstrap_app()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    recover_interrupted_runs()
     scheduler = AutoRunScheduler()
     scheduler.start()
     app.state.auto_run_scheduler = scheduler

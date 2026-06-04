@@ -37,6 +37,15 @@ class RunRepository:
         )
         return result.scalar_one_or_none() is not None
 
+    def list_active(self) -> list[ParserRun]:
+        result = self.db.execute(
+            select(ParserRun)
+            .options(selectinload(ParserRun.categories))
+            .where(ParserRun.status.in_(("pending", "running", "stopping")))
+            .order_by(ParserRun.created_at.desc())
+        )
+        return list(result.scalars().all())
+
     def get(self, run_id: int) -> ParserRun | None:
         result = self.db.execute(
             select(ParserRun).options(selectinload(ParserRun.categories)).where(ParserRun.id == run_id)
